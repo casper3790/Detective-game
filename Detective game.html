@@ -8,14 +8,14 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         /* 自定義捲軸樣式，讓介面更有偵探主題感 */
-        #case-file::-webkit-scrollbar, #clue-dossier::-webkit-scrollbar {
+        #case-file::-webkit-scrollbar, #dossier-sidebar::-webkit-scrollbar {
             width: 8px;
         }
-        #case-file::-webkit-scrollbar-thumb, #clue-dossier::-webkit-scrollbar-thumb {
+        #case-file::-webkit-scrollbar-thumb, #dossier-sidebar::-webkit-scrollbar-thumb {
             background-color: #4b5563; /* 灰色調 */
             border-radius: 4px;
         }
-        #case-file::-webkit-scrollbar-track, #clue-dossier::-webkit-scrollbar-track {
+        #case-file::-webkit-scrollbar-track, #dossier-sidebar::-webkit-scrollbar-track {
             background: #1f2937; /* 深藍灰色背景 */
         }
         /* Inter 字體 (Tailwind 默認) */
@@ -30,6 +30,15 @@
         }
         #action-input:focus {
             box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.5); /* 聚焦時顯示金色光暈 */
+        }
+        /* 手機板面優化：預設隱藏側邊欄，桌面版顯示 */
+        #dossier-sidebar {
+            display: none;
+        }
+        @media (min-width: 768px) {
+            #dossier-sidebar {
+                display: block;
+            }
         }
     </style>
     <script>
@@ -54,27 +63,31 @@
         
         <!-- 標題、儲存/載入按鈕與資訊 -->
         <header class="bg-gray-900 p-4 border-b-4 border-accent-gold flex justify-between items-center">
-            <h1 class="text-2xl font-bold text-accent-gold">神秘檔案：失落的文物</h1>
-            <div class="flex items-center space-x-4">
-                <!-- 儲存/載入按鈕 -->
-                <button id="save-btn" onclick="saveGameState()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded transition duration-200 text-sm disabled:opacity-50">
-                    儲存進度
+            <h1 class="text-xl sm:text-2xl font-bold text-accent-gold">神秘檔案：失落的文物</h1>
+            <div class="flex items-center space-x-2 sm:space-x-4">
+                <!-- 手機版 Dossier 切換按鈕 -->
+                <button id="toggle-dossier-btn" onclick="toggleDossierSidebar()" class="md:hidden bg-gray-700 hover:bg-gray-600 text-white font-bold py-2 px-3 rounded transition duration-200 text-sm">
+                    檔案夾
                 </button>
-                <button id="load-btn" onclick="loadGameState()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded transition duration-200 text-sm disabled:opacity-50">
-                    載入進度
+                <!-- 儲存/載入按鈕 -->
+                <button id="save-btn" onclick="saveGameState()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-3 sm:px-4 rounded transition duration-200 text-sm disabled:opacity-50">
+                    儲存
+                </button>
+                <button id="load-btn" onclick="loadGameState()" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-3 sm:px-4 rounded transition duration-200 text-sm disabled:opacity-50">
+                    載入
                 </button>
                 <!-- 使用者 ID 顯示 -->
-                <div class="text-sm font-light italic opacity-75 hidden sm:block">
+                <div class="text-xs font-light italic opacity-75 hidden lg:block">
                     ID: <span id="user-id" class="font-mono text-xs">載入中...</span>
                 </div>
             </div>
         </header>
 
         <!-- 內容區: 檔案夾與對話 (使用 Grid 佈局) -->
-        <div class="flex-grow grid grid-cols-1 md:grid-cols-5 overflow-hidden">
+        <div class="flex-grow grid grid-cols-1 md:grid-cols-5 overflow-hidden relative">
             
             <!-- 檔案夾 (Dossier) - 佔 2/5 或 1/5 寬度 -->
-            <div id="dossier-sidebar" class="md:col-span-2 lg:col-span-1 bg-gray-900 p-4 border-r border-gray-700 overflow-y-auto hidden md:block">
+            <div id="dossier-sidebar" class="absolute md:relative z-10 w-full h-full md:col-span-2 lg:col-span-1 bg-gray-900 p-4 border-r border-gray-700 overflow-y-auto transform -translate-x-full md:translate-x-0 transition-transform duration-300 ease-in-out">
                 <h2 class="text-xl font-bold text-accent-gold mb-3 border-b border-accent-gold/50 pb-2">案件檔案夾</h2>
                 
                 <!-- Dossier 導航標籤 -->
@@ -105,7 +118,7 @@
             </div>
 
             <!-- 案件檔案 (對話/線索顯示區) - 佔 3/5 或 4/5 寬度 -->
-            <div id="case-file" class="md:col-span-3 lg:col-span-4 flex-grow p-5 overflow-y-auto space-y-4 bg-gray-700">
+            <div id="case-file" class="md:col-span-3 lg:col-span-4 col-span-5 flex-grow p-5 overflow-y-auto space-y-4 bg-gray-700">
                 <!-- 初始案件描述將在這裡顯示 -->
             </div>
         </div>
@@ -151,7 +164,7 @@
         // -----------------------------------------------------
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, doc, setDoc, getDoc, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         
         let db, auth, userId;
         
@@ -161,9 +174,10 @@
 
         // 僅在配置存在時初始化 Firebase
         if (Object.keys(firebaseConfig).length > 0) {
+            setLogLevel('Debug'); // 啟用 Firebase 偵錯日誌
             const app = initializeApp(firebaseConfig);
             auth = getAuth(app);
-            db = getFirestore(app); // 初始化 Firestore
+            db = getFirestore(app);
             
             // 處理登入
             if (initialAuthToken) {
@@ -206,7 +220,6 @@
         const apiKey = ""; 
         const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${apiKey}`;
         
-        // **更新的 System Prompt**：新增了人物 JSON 結構指令
         const systemPrompt = `
             您是偵探解謎遊戲「神秘檔案：失落的文物」的**遊戲主控（Game Master）**。
             您的職責是：
@@ -227,21 +240,13 @@
             如果您在敘事中介紹了新的**人物或嫌疑犯**，您必須在回覆**文字結束後**，附帶一個特殊的 JSON 結構來提報人物。
             該 JSON 必須被以下標籤包裹：[CHAR_JSON_START] 和 [CHAR_JSON_END]。
             
-            **人物 JSON 格式範例：**
-            [CHAR_JSON_START]
-            {
-              "name": "羅伯特·格雷",
-              "role": "博物館館長",
-              "description": "一位年邁但嚴謹的學者，負責管理整個博物館。對「日曜護身符」有著極深的感情。"
-            }
-            [CHAR_JSON_END]
-            
             請在單次回覆中，先敘事，然後依序附帶 CLUE JSON 和/或 CHAR JSON。
+            請確保 JSON 結構位於回覆文本之後，且 JSON 內容清晰、格式正確。
         `;
 
         let chatHistory = [];
         let clues = []; 
-        let characters = []; // 新增人物陣列
+        let characters = [];
         
         async function getGeminiResponse(prompt) {
             const maxRetries = 5;
@@ -285,12 +290,12 @@
                         
                         // --- 1. 提取並處理 JSON ---
                         const jsonTags = [
-                            { start: '[CLUE_JSON_START]', end: '[CLUE_JSON_END]', handler: addClue },
-                            { start: '[CHAR_JSON_START]', end: '[CHAR_JSON_END]', handler: addCharacter }
+                            { start: '[CLUE_JSON_START]', end: '[CLUE_JSON_END]', handler: addClue, type: 'CLUE' },
+                            { start: '[CHAR_JSON_START]', end: '[CHAR_JSON_END]', handler: addCharacter, type: 'CHAR' }
                         ];
 
-                        // 由於 Gemini 可能會輸出多個 JSON 區塊，我們使用正規表達式來找尋所有匹配
                         for (const tag of jsonTags) {
+                            // 使用非貪婪匹配來找尋所有區塊
                             const regex = new RegExp(`${tag.start}([\\s\\S]*?)${tag.end}`, 'g');
                             let match;
 
@@ -301,8 +306,10 @@
                                     tag.handler(data);
                                     // 從敘事文本中移除這個 JSON 區塊
                                     narrativeText = narrativeText.replace(match[0], '').trim();
+                                    console.log(`成功解析並新增 ${tag.type} 項目。`);
                                 } catch (e) {
-                                    console.error(`Failed to parse ${tag.start} JSON:`, e, jsonString);
+                                    console.error(`解析 ${tag.type} JSON 失敗，原始 JSON 串:`, jsonString, e);
+                                    // 即使解析失敗，我們也不移除它，讓它作為原始文本的一部分，避免丟失信息
                                 }
                             }
                         }
@@ -312,13 +319,17 @@
                         return narrativeText;
 
                     } else {
-                        throw new Error("Invalid response structure from API.");
+                        throw new Error("Invalid response structure from API (missing candidate or text).");
                     }
                 } catch (error) {
                     console.error("Gemini API Error:", error);
+                    // 如果 API 呼叫失敗，將錯誤訊息加入歷史記錄
+                    chatHistory.push({ role: "model", parts: [{ text: `連線錯誤：Gemini API 呼叫失敗，原因：${error.message}` }] });
                     return "檔案損壞... 遊戲主控似乎網路連線出現問題。請稍後再試。";
                 }
             }
+            // 超過最大重試次數
+            chatHistory.push({ role: "model", parts: [{ text: "無法連線至總部，已達最大重試次數，請檢查您的網路連線。" }] });
             return "無法連線至總部，請檢查您的網路連線。";
         }
 
@@ -331,8 +342,19 @@
         const submitBtn = document.getElementById('submit-action-btn');
         const loadingIndicator = document.getElementById('loading-indicator');
         const cluesList = document.getElementById('clues-list'); 
-        const charactersList = document.getElementById('characters-list'); // 新增人物列表元素
-        let currentDossierView = 'clues'; // 預設顯示線索
+        const charactersList = document.getElementById('characters-list');
+        const dossierSidebar = document.getElementById('dossier-sidebar');
+        let currentDossierView = 'clues';
+
+        // 顯示/隱藏手機版側邊欄 (新增)
+        window.toggleDossierSidebar = function() {
+            if (dossierSidebar.classList.contains('-translate-x-full')) {
+                dossierSidebar.classList.remove('-translate-x-full');
+            } else {
+                dossierSidebar.classList.add('-translate-x-full');
+            }
+        }
+
 
         // 顯示通知訊息
         function showToast(message, type = 'info') {
@@ -354,15 +376,6 @@
         window.handleAction = async function() {
             const playerAction = actionInput.value.trim();
             if (!playerAction) return;
-
-            // 初始行動時，如果 chatHistory 是空的，確保加入一條關於館長的人物線索 (如果沒有 Firebase 載入)
-            if (chatHistory.length === 0 && !characters.some(c => c.role === '博物館館長')) {
-                addCharacter({
-                    name: "羅伯特·格雷",
-                    role: "博物館館長",
-                    description: "一位年邁但嚴謹的學者，負責管理整個博物館。對「日曜護身符」有著極深的感情。"
-                });
-            }
 
             appendMessage('player', playerAction);
             actionInput.value = ''; 
@@ -405,7 +418,7 @@
                         您的偵查行動開始了。您打算怎麼做？
                     </p>
                     <ul class="list-disc list-inside mt-3 space-y-1 text-sm text-gray-300">
-                        <li>您可以：**詢問在場的人物** (點擊右側人物檔案，你會看到館長已經在場！)</li>
+                        <li>您可以：**詢問在場的人物** (請點擊右側或上方的**人物檔案**標籤，查看羅伯特·格雷館長)</li>
                         <li>您可以：**檢查展廳環境** (e.g. 仔細檢查展櫃周圍的地面)</li>
                         <li>您可以：**查看安全日誌** (e.g. 要求查看午夜的保全巡邏記錄)</li>
                     </ul>
@@ -549,18 +562,18 @@
                 clueTab.classList.replace('text-gray-400', 'text-accent-gold');
                 charTab.classList.replace('border-accent-gold', 'border-transparent');
                 charTab.classList.replace('text-accent-gold', 'text-gray-400');
-                renderClues(); // 確保切換時重新渲染
+                renderClues();
             } else {
                 charTab.classList.replace('border-transparent', 'border-accent-gold');
                 charTab.classList.replace('text-gray-400', 'text-accent-gold');
                 clueTab.classList.replace('border-accent-gold', 'border-transparent');
                 clueTab.classList.replace('text-accent-gold', 'text-gray-400');
-                renderCharacters(); // 確保切換時重新渲染
+                renderCharacters();
             }
         }
         
         // -----------------------------------------------------
-        // 4. Firestore 儲存/載入邏輯 (更新以包含 characters)
+        // 4. Firestore 儲存/載入邏輯 
         // -----------------------------------------------------
 
         const GAME_COLLECTION = 'game_saves';
@@ -590,7 +603,7 @@
                 const gameState = {
                     chatHistory: chatHistory,
                     clues: clues,
-                    characters: characters, // 新增
+                    characters: characters,
                     timestamp: Date.now()
                 };
                 
@@ -610,7 +623,6 @@
          */
         async function loadGameState() {
             if (!userId || !db) {
-                // 如果 Firebase 或 userId 尚未準備好，只會啟動新遊戲
                 if (!initialStateLoaded) window.startNewGame(); 
                 return;
             }
@@ -627,13 +639,13 @@
                     // 載入狀態
                     chatHistory = loadedState.chatHistory || [];
                     clues = loadedState.clues || [];
-                    characters = loadedState.characters || []; // 載入人物
+                    characters = loadedState.characters || [];
 
                     // 重新渲染 UI
                     renderCaseFile();
                     renderClues();
-                    renderCharacters(); // 渲染人物
-                    window.switchDossierView(currentDossierView); // 確保顯示正確的檔案夾
+                    renderCharacters();
+                    window.switchDossierView(currentDossierView);
                     
                     const date = new Date(loadedState.timestamp).toLocaleTimeString('zh-TW');
                     showToast(`進度已載入 (上次儲存於 ${date})`, 'success');
@@ -647,7 +659,7 @@
                 }
             } catch (error) {
                 console.error("Load failed:", error);
-                showToast("載入進度失敗。", 'error');
+                showToast("載入進度失敗，已啟動新遊戲。", 'error');
                 if (!initialStateLoaded) window.startNewGame();
             } finally {
                 setLoadingState(false);
@@ -674,7 +686,7 @@
             renderCaseFile(); 
             renderClues(); 
             renderCharacters();
-            window.switchDossierView('clues'); // 預設切換到線索
+            window.switchDossierView('clues');
 
             initialStateLoaded = true;
         }
@@ -682,7 +694,7 @@
         // -----------------------------------------------------
         // 5. 啟動邏輯
         // -----------------------------------------------------
-        // 如果沒有 Firebase 配置，會直接在上方呼叫 startNewGame。
+        // 如果沒有 Firebase，會直接在上方呼叫 startNewGame。
         // 如果有 Firebase，則會在 onAuthStateChanged 完成後呼叫 loadGameState。
         
     </script>
